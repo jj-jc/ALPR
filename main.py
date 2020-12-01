@@ -2,7 +2,7 @@
 import cv2
 import glob
 import numpy as np
-
+import argparse
 
 CLEAN=True
 
@@ -56,7 +56,31 @@ def plotProj(hor_proj, ver_proj, img):
     for column in range(img.shape[1]):
         cv2.line(result_ver, (column, 0), (column, int(ver_proj[column]*m/w)), (255, 255, 255), 1)
     cv2.imshow("Vertical", cv2.resize(result_ver, (500, 500)))
-
+#function for the corner detection
+def cornerHarris_demo(val,src_gray):
+    thresh = val
+    # Detector parameters
+    blockSize = 2
+    apertureSize = 3
+    k = 0.04
+    n_corners=0;
+    # Detecting corners
+    dst = cv2.cornerHarris(src_gray, blockSize, apertureSize, k)
+    # Normalizing
+    dst_norm = np.empty(dst.shape, dtype=np.float32)
+    cv2.normalize(dst, dst_norm, alpha=0, beta=255, norm_type=cv2.NORM_MINMAX)
+    dst_norm_scaled = cv2.convertScaleAbs(dst_norm)
+    # Drawing a circle around corners
+    for i in range(dst_norm.shape[0]):
+        for j in range(dst_norm.shape[1]):
+            if int(dst_norm[i,j]) > thresh:
+                cv2.circle(dst_norm_scaled, (j,i), 5, (0), 2)
+                n_corners=n_corners+1
+    # Showing the result
+    # cv2.namedWindow(corners_window)
+    # cv2.imshow("Corners", dst_norm_scaled)
+    # print(n_corners)
+    return n_corners
 
 def image_control(i):
     k = cv2.waitKey(0)                  # wait for a key 
@@ -71,12 +95,27 @@ def image_control(i):
         cv2.destroyAllWindows()
     return i
 
+def counts(i):
+    print("Correct? ")
+    k = cv2.waitKey(0)  
+    if k == 27:                         # 'ESC' for exist
+        i=[]
+        i=-1
+    elif k == ord('y'):                  # 'p' for positive
+        i.append(1)      
+        print("Yes\n")
+    elif k == ord('n'):                  # 'b' for back
+        i.append(0)  
+        print("No\n")
+        
+
+positives_count=[]
+
 # Image Load into a list (Si da error fíjate bien en el path)
 image_filenames = glob.glob('Dataset/070603/*.*')
 image_list = []
 for image in image_filenames:
     image_list.append(cv2.imread(image))
-
 
 
 
@@ -150,7 +189,6 @@ while True:
 image_edge=image_edge_laplacian
 
 
-
 # # Edge dilation (Realmente no está puesta ninguna dilation porque el kernel es (1, 1), puedes probar si con (2, 2) va
 # # mejor, desde luego más de (2, 2) es una burrada), (el erode empeora más que mejorar, y el resto de operaciones
 # # morfologicas no parecen mejorar tampoco (open, close, tophat, blackhat, etc))
@@ -171,7 +209,7 @@ image_edge=image_edge_laplacian
 image_contour = []
 
 index=0;
-while True:
+while index!=100:
     compares=[]
     #original = image_edge[index] 
     original = image_dilated[index] # crea una copia de la imagen preprocesada para trabajar sobre ella
@@ -182,11 +220,11 @@ while True:
     cv2.drawContours(all_contours, cont, -1, (255, 0, 0), 3) # estas dos líneas junto con la siguiente que está
     # comentada muestran los contornos detectados sobre la imagen original para visualización
     cv2.imshow("contours: "+image_filenames[index], all_contours)
-    cont = sorted(cont, key=cv2.contourArea, reverse=True)[:8] # esto sirve para obtener los 8 contornos con más área
+    cont = sorted(cont, key=cv2.contourArea, reverse=True)[:4] # esto sirve para obtener los 8 contornos con más área
     # y así no tener en cuenta contornos muy pequeños que puede haber en la imagen. A partir de estos 8 contornos o los
     # que se se desee se realiza la búsqueda de la matrícula
-
     compare=image_edge[index].copy()
+    crp_image=[]
 
     for i in cont:
         perimeter = cv2.arcLength(i, True)
@@ -195,8 +233,13 @@ while True:
         # if len(lines) == 4: # se estudian los contornos de 4 lineas (cuadrados/rectángulos), que es lo que nos
         # interesa ya que las matrículas de coche son rectángulos
         x, y, w, h = cv2.boundingRect(i) # aquí se obtiene un rectángulo que contiene al contorno estudiado
-        crp_image = original[y:y+h, x:x+w] # se recorta la imagen para solo tener el contorno estudiado
-        hor_proj, ver_proj = getProj(crp_image) # aquí se obtienen y se grafican las proyecciones vertical y
+        aspect_ratio=float(w)/h
+        if (3< aspect_ratio< 6):
+            # print(aspect_ratio)
+            crp_image.append(image_list[index][y:y+h, x:x+w])
+
+             # se recorta la imagen para solo tener el contorno estudiado
+        # hor_proj, ver_proj = getProj(crp_image) # aquí se obtienen y se grafican las proyecciones vertical y
         #plotProj(hor_proj, ver_proj, crp_image) # horizontal (igual no sirven para nada o igual las podemos usar)
 
         cv2.rectangle(compare, (x, y), (x+w, y+h), (255, 0, 0), 2) # Im
@@ -204,13 +247,34 @@ while True:
         # pinta el rectángulo del contorno
 
     cv2.imshow("edge image: "+image_filenames[index], compare)
-    #cv2.imshow("license plate: ", crp_image)
+    if(crp_image!=[]):#no dibujar si no se ha conseguido ninguna
+        if(len(crp_image)==1):#si solo tiene una, es la matrícula
+            cv2.imshow("license plate: "+image_filenames[index], crp_image[0])
+            print("Encontrada "+image_filenames[index])
+        else:
+            for i in range(len(crp_image)):#cuando tiene varias, filtrar por el número de esquinas
+                # n_corners=[]
+                gray_rectangle=cv2.cvtColor(crp_image[i], cv2.COLOR_BGR2GRAY)  
+                n_corners=cornerHarris_demo(80,gray_rectangle)#Se ha pensado como posible creterio para limpiar los falsos positivos           
+                print(n_corners)
+                if(50<n_corners<600):
+                    cv2.imshow("license plate: "+image_filenames[index], crp_image[i])
+                    # print("¿Válida Figura " +str(i) + "de"+ str(len(crp_image)))
+                    cv2.waitKey()
+        # chosen_rectangle=np.where(n_corners==np.amax(n_corners))
+        # chosen_rectangle=np.array(chosen_rectangle)
+
+    counts(positives_count)
     index=image_control(index)
     if(index==-1):
         break;
 
     #cv2.imshow(image)
 image_contour.append(crp_image)
+
+
+print("Positivos: ", positives_count.count(1),"\n")
+print("Negativos: ", positives_count.count(0),"\n")
 
 # Hay dos posibles caminos que tomar respecto a lo que ha dicho Sergio:
 # El primero sería dejar como está el código (incluso quitando la ecualizacion) y hacer a posteriori otro preprocesado
