@@ -160,18 +160,17 @@ while True:
     cont, hier = cv2.findContours(image_dilated[index], cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
     all_contours = image_list[index].copy()
     cv2.drawContours(all_contours, cont, -1, (255, 0, 0), 3)
-    #cv2.imshow("contours: "+image_filenames[index], all_contours)
+    #cv2.imshow("contours: "+image_filenames[index], all_contours) #Esto es para visualizar los contornos
     cont = sorted(cont, key=cv2.contourArea, reverse=True)[:8]
     largest_extent = 0
     compare = image_edge[index].copy()
     l = 0
-    # A continuación se dibujan las bounding box de los distintos contornos y se preprocesan sobre la imagen en
-    # escala de grises
     for i in cont:
         perimeter = cv2.arcLength(i, True)
         lines = cv2.approxPolyDP(i, 0.02*perimeter, True)
         x, y, w, h = cv2.boundingRect(i)
-        # Ahora se hace un filtrado para descartar los contornos que no pueden ser matrícula por forma :
+        # Ahora se hace un filtrado para descartar los contornos que no pueden ser matrícula por su aspect ratio y
+        # por su extent (area del contorno/ area de la bounding box):
         aspect_ratio = w/h
         if 7 > aspect_ratio > 1.3:
             extent = cv2.contourArea(i)/(w*h)
@@ -180,8 +179,9 @@ while True:
                 image_contour[index].clear()
                 crp_image = image_list[index][y:y + h, x:x + w]
                 crp_image = cv2.cvtColor(crp_image, cv2.COLOR_BGR2GRAY)
-                # Esto se puede optimizar haciendo el preprocesado una vez obtenidas todas las imagenes de las
-                # matrículas
+                # Esto se puede optimizar haciendo el preprocesado una vez obtenidas unicamente las imagenes de las
+                # matrículas. Habría que de alguna forma eliminar esos bordes de la imagen que a veces hacen fallar al
+                # OCR y además filtrar de alguna forma el escudo de Croacia
                 crp_equalized = cv2.equalizeHist(crp_image)
                 crp_bin_THRESHOLD = cv2.threshold(crp_equalized, 150, 255, cv2.THRESH_BINARY | cv2.THRESH_OTSU)[0]
                 crp_bin = cv2.threshold(crp_equalized, crp_bin_THRESHOLD - 30, 255, cv2.THRESH_BINARY)[1]
@@ -190,12 +190,12 @@ while True:
                 crp_ocr = cv2.erode(crp_ocr, kernel, iterations=1)
                 image_contour[index].append(crp_ocr)
         cv2.rectangle(compare, (x, y), (x+w, y+h), (255, 0, 0), 2)
-
         l = l + 1
 
     cv2.imshow("original" + image_filenames[index], image_list[index])
     text = tess.image_to_string(image_contour[index][0],config='-c tessedit_char_whitelist=0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ- --psm 8 --oem 3')
     print("License Plate is:", text)
+    # Este codigo es para dibujar las bounding boxes de cada caracter detectado por pytesseract
     boxes = tess.image_to_boxes(image_contour[index][0], config='-c tessedit_char_whitelist=0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ- --psm 8 --oem 3')
     h, w = image_contour[index][0].shape
     for b in boxes.splitlines():
@@ -206,5 +206,3 @@ while True:
     index = image_control(index)
     if index == -1:
         break
-
-    #cv2.imshow(image)
