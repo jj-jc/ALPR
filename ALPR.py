@@ -77,12 +77,12 @@ def processImage(cv2_image):
 ############################### Main program ###############################
 ######################################################################################
 import glob
-image_filenames = glob.glob('Dataset/070603/*.*')
+image_filenames = glob.glob('Dataset/040603/*.*')
 for path in image_filenames:
     image = cv2.imread(path)
     plate_number, crp = processImage(image)
     print("License Plate is:", plate_number)
-    cv2.imshow("image", image)
+    cv2.imshow("image: "+path, image)
     cv2.imshow("crp_plate", crp)
     k = cv2.waitKey(0)
     if k == 27:                         # 'ESC' for exist
