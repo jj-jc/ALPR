@@ -143,7 +143,7 @@ def algoritmo():
         median = cv2.medianBlur(gray, 5)
         clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
         equalized = clahe.apply(median)
-        binary = cv2.threshold(median, 100, 255, cv2.THRESH_BINARY | cv2.THRESH_OTSU)[1]
+        binary = cv2.threshold(equalized, 100, 255, cv2.THRESH_BINARY | cv2.THRESH_OTSU)[1]
         kernel = np.ones((3, 3), np.uint8)
         dilated = cv2.dilate(binary, kernel, iterations=1)
         edges = cv2.Laplacian(dilated, cv2.CV_8UC1)
