@@ -77,7 +77,7 @@ def processImage(cv2_image):
 ############################### Main program ###############################
 ######################################################################################
 import glob
-image_filenames = glob.glob('Dataset/040603/*.*')
+image_filenames = glob.glob('Dataset/Testeo/*.*')
 for path in image_filenames:
     image = cv2.imread(path)
     plate_number, crp = processImage(image)
